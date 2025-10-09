@@ -1,0 +1,18 @@
+data:
+  train_np: data/prepared/FD001_w32_s16_norm_detrend/cmapss_w32_s16_norm_detrend_train.npy
+  val_np:   data/prepared/FD001_w32_s16_norm_detrend/cmapss_w32_s16_norm_detrend_val.npy
+  test_np:  data/prepared/FD001_w32_s16_norm_detrend/cmapss_w32_s16_norm_detrend_test.npy
+  T: 32
+  C: 1
+  stride: 16
+
+model:
+  type: cnn
+  latent_dim: 8
+
+train:
+  batch_size: 64
+  lr: 0.001
+  epochs: 50
+  lambda_latent: 1e-4
+  ckpt: ckpt/best_w32.pth

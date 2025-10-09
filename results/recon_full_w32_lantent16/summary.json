@@ -1,0 +1,18 @@
+{
+  "overall_mse": 0.20338407672113842,
+  "n_windows": 315,
+  "T": 32,
+  "C": 1,
+  "prepared_dir": "data/prepared/FD001_w32_s16_norm_detrend",
+  "norm_stats_path": "data/prepared/FD001_w32_s16_norm_detrend\\cmapss_w32_s16_norm_detrend_norm_stats.json",
+  "trend_params_path": "data/prepared/FD001_w32_s16_norm_detrend\\cmapss_w32_s16_norm_detrend_trend_params.json",
+  "stride": 16,
+  "latent_bytes": 10208,
+  "latent_compressed_bytes": 9588,
+  "full_raw_path": "data/prepared/FD001_w32_s16_norm_detrend\\cmapss_w32_s16_norm_detrend_full_raw.npy",
+  "full_raw_bytes": 269944,
+  "compression_ratio_raw_vs_latent_npy": 26.44435736677116,
+  "compression_saving_raw_vs_latent_npy": 0.9621847494295113,
+  "compression_ratio_raw_vs_latent_npz": 28.154359616186902,
+  "compression_saving_raw_vs_latent_npz": 0.9644815220934713
+}

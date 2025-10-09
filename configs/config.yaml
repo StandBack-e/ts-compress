@@ -1,0 +1,17 @@
+data:
+  train_np: data/prepared/cmapss_train.npy
+  val_np: data/prepared/cmapss_val.npy
+  test_np: data/prepared/cmapss_test.npy
+  T: 32
+  C: 1
+
+model:
+  type: cnn
+  latent_dim: 8
+
+train:
+  batch_size: 128
+  lr: 0.001
+  epochs: 50
+  lambda_latent: 1e-4
+  ckpt: ckpt/best.pth

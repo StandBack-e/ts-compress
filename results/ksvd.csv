@@ -1,0 +1,2 @@
+method,K,s,MSE,bits_per_window,time_s
+ksvd,48,4,0.12013966595807077,80.576,1.741147518157959

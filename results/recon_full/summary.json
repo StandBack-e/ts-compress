@@ -1,0 +1,9 @@
+{
+  "overall_mse": 0.21293151880067493,
+  "n_windows": 315,
+  "T": 32,
+  "C": 1,
+  "prepared_dir": "data/prepared/FD001_w32_s16_norm_detrend",
+  "norm_stats_path": "data/prepared/FD001_w32_s16_norm_detrend\\cmapss_w32_s16_norm_detrend_norm_stats.json",
+  "trend_params_path": "data/prepared/FD001_w32_s16_norm_detrend\\cmapss_w32_s16_norm_detrend_trend_params.json"
+}

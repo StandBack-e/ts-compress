@@ -1,0 +1,2 @@
+method,n_components,MSE,bits_per_window,time_s
+pca,8,0.17710204422473907,128,0.037215471267700195
