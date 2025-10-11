@@ -1,0 +1,18 @@
+data:
+  train_np: data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_train.npy
+  val_np:   data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_val.npy
+  test_np:  data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_test.npy
+  T: 32
+  C: 1
+  stride: 16
+
+model:
+  type: cnnrnn
+  latent_dim: 8
+
+train:
+  batch_size: 128
+  lr: 0.001
+  epochs: 100
+  lambda_latent: 1e-4
+  ckpt: ckpt/best_w32_cnnrnn_latent8.pth

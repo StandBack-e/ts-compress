@@ -117,8 +117,9 @@ def main(args):
     trend_params = None
     # optional detrend (and save slope/intercept)
     if args.detrend:
+        full_series_length = len(series) # 保存去趋势前的完整长度
         series, slope, intercept = detrend_linear_with_params(series)
-        trend_params = {'slope': slope, 'intercept': intercept}
+        trend_params = {'slope': slope, 'intercept': intercept, 'full_series_length': full_series_length}
         print(f"[preprocess] detrend applied: slope={slope:.6e}, intercept={intercept:.6e}")
 
     # sliding windows

@@ -13,6 +13,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from data.loaders import TimeSeriesDataset
 from models.cnn_ae import CNNAutoEncoder
+from models.cnn_rnn_ae import CNNRNNAutoEncoder
 
 def reconstruct_from_windows_np(windows, window, stride):
     if windows.ndim == 2:
@@ -105,7 +106,11 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     T, C = test_arr.shape[1], test_arr.shape[2]
-    model = CNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
+    if cfg['model']['type'] == 'cnn':
+        model = CNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
+    else:
+        model = CNNRNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
+    # model = CNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
     model.load_state_dict(ckpt['model'])
     model.eval()
 
@@ -117,7 +122,9 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
     with torch.no_grad():
         for xb in dl:
             xb = xb.to(device).float()
-            rec, z = model(xb)
+            z = model(xb)
+            rec = model.decode(z)
+            # rec, z = model(xb)
             b_mse = ((xb - rec)**2).mean(dim=(1,2)).cpu().numpy()  # (B,)
             mse_list.extend(b_mse.tolist())
             all_orig.append(xb.cpu().numpy())
@@ -168,34 +175,42 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
     recon_seq_normed, coverage = reconstruct_from_windows_np(all_rec, T, stride)
     orig_seq_normed, _ = reconstruct_from_windows_np(all_orig, T, stride)
 
+    print("[eval_saved] Saving sequences in their processed (normalized) state.")
+    np.save(os.path.join(out_dir, "test_rec_seq.npy"), recon_seq_normed)
+    np.save(os.path.join(out_dir, "test_orig_seq.npy"), orig_seq_normed)
+
+    recon_seq_restored = recon_seq_normed
+    orig_seq_restored = orig_seq_normed
+
+
     # detect norm/trend files in prepared dir
     norm_stats_path = find_json_file_with_keyword(prepared_dir, 'norm_stats')
     trend_params_path = find_json_file_with_keyword(prepared_dir, 'trend_params')
 
     # inverse normalize
     if norm_stats_path:
-        recon_seq = inverse_normalize_np(recon_seq_normed, norm_stats_path)
-        orig_seq = inverse_normalize_np(orig_seq_normed, norm_stats_path)
+        recon_seq_restored = inverse_normalize_np(recon_seq_normed, norm_stats_path)
+        orig_seq_restored = inverse_normalize_np(orig_seq_normed, norm_stats_path)
         print(f"[eval_saved] applied inverse normalize from: {norm_stats_path}")
     else:
-        recon_seq = recon_seq_normed
-        orig_seq = orig_seq_normed
+        recon_seq_restored = recon_seq_normed
+        orig_seq_restored = orig_seq_normed
         print("[eval_saved] no norm_stats found; kept normalized values")
 
     # inverse detrend
     if trend_params_path:
         tp = json.load(open(trend_params_path))
-        recon_seq = add_linear_trend_np(recon_seq, tp.get('slope',0.0), tp.get('intercept',0.0))
-        orig_seq = add_linear_trend_np(orig_seq, tp.get('slope',0.0), tp.get('intercept',0.0))
+        recon_seq_restored = add_linear_trend_np(recon_seq_restored, tp.get('slope',0.0), tp.get('intercept',0.0))
+        orig_seq_restored = add_linear_trend_np(orig_seq_restored, tp.get('slope',0.0), tp.get('intercept',0.0))
         print(f"[eval_saved] applied trend add from: {trend_params_path}")
     else:
-        recon_seq = estimate_and_add_trend_np(recon_seq)
-        orig_seq = estimate_and_add_trend_np(orig_seq)
+        # recon_seq = estimate_and_add_trend_np(recon_seq)
+        # orig_seq = estimate_and_add_trend_np(orig_seq)
         print("[eval_saved] no trend params found; did estimate_and_add_trend (approx)")
 
     # save full sequence arrays and coverage
-    np.save(os.path.join(out_dir, "test_rec_seq.npy"), recon_seq)
-    np.save(os.path.join(out_dir, "test_orig_seq.npy"), orig_seq)
+    # np.save(os.path.join(out_dir, "test_rec_seq.npy"), recon_seq)
+    # np.save(os.path.join(out_dir, "test_orig_seq.npy"), orig_seq)
     np.save(os.path.join(out_dir, "coverage.npy"), coverage)
 
     # collect file size info for summary
@@ -207,6 +222,7 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
     for fname in os.listdir(prepared_dir):
         if 'full_raw' in fname and fname.endswith('.npy'):
             full_raw_path = os.path.join(prepared_dir, fname)
+            print(f"[eval_saved] found full_raw: {full_raw_path}")
             break
     full_raw_bytes = safe_filesize(full_raw_path) if full_raw_path is not None else None
 
@@ -237,14 +253,14 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
         json.dump(summary, f, indent=2)
 
     # plot full sequence comparison (crop to same length)
-    L = min(len(orig_seq), len(recon_seq))
+    L = min(len(orig_seq_restored), len(recon_seq_restored))
     plt.figure(figsize=(12,3))
-    if orig_seq.ndim == 2:
-        plt.plot(orig_seq[:L,0], label='orig')
-        plt.plot(recon_seq[:L,0], label='recon', alpha=0.9)
+    if orig_seq_restored.ndim == 2:
+        plt.plot(orig_seq_restored[:L,0], label='orig')
+        plt.plot(recon_seq_restored[:L,0], label='recon', alpha=0.9)
     else:
-        plt.plot(orig_seq[:L], label='orig')
-        plt.plot(recon_seq[:L], label='recon', alpha=0.9)
+        plt.plot(orig_seq_restored[:L], label='orig')
+        plt.plot(recon_seq_restored[:L], label='recon', alpha=0.9)
     plt.legend(); plt.title("Full-sequence reconstruction (from windows)")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "recon_full_sequence.png"), dpi=300)
@@ -260,5 +276,5 @@ if __name__ == "__main__":
     parser.add_argument("--n_save", type=int, default=8, help="how many example windows to save")
     parser.add_argument("--out_dir", type=str, default="results")
     args = parser.parse_args()
-    cfg = yaml.safe_load(open(args.cfg))
+    cfg = yaml.safe_load(open(args.cfg,encoding='utf-8'))
     evaluate_and_save(cfg, n_save=args.n_save, out_dir=args.out_dir)

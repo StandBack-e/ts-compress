@@ -1,0 +1,21 @@
+data:
+  train_np: data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_train.npy 
+  val_np: data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_val.npy   
+  test_np: data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_test.npy  
+  T: 32
+  C: 1
+  stride: 16 # <--- **新增：必须与您preprocess时使用的stride一致**
+
+model:
+  type: cnnrnn # 或 cnn
+  latent_dim: 8
+
+train:
+  batch_size: 128
+  lr: 0.001
+  epochs: 150
+  lambda_latent: 1e-4
+  alpha_stft: 0.1 # <--- 将alpha重命名为alpha_stft
+  lambda_consistency: 10.0 # <--- **新增：一致性损失的权重**
+  lambda_latent_consistency: 0.05 # <--- **新增：潜在空间一致性损失的权重**
+  ckpt: ckpt/best_consistency_latent_consistency0.05.pth # 建议保存为新文件
