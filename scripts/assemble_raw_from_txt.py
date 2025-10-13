@@ -2,7 +2,7 @@
 """
 从 CMAPSS 原始 txt 拼回指定 sensor 的完整原始序列并保存为 npy。
 用法示例（powershell）:
-python scripts/assemble_raw_from_txt.py --subset FD001 --sensor 7 --input_dir ./data/CMAPSS --out_dir ./data/prepared/FD001_w32_s16_norm_detrend --save_prefix cmapss_w32_s16_norm_detrend
+python scripts/assemble_raw_from_txt.py --subset FD001 --sensor 2 --input_dir ./data/CMAPSS --out_dir ./data/prepared/FD001_w32_s16_norm_detrend --save_prefix cmapss_w32_s16_norm_detrend
 """
 import os
 import argparse

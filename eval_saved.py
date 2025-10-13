@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from data.loaders import TimeSeriesDataset
 from models.cnn_ae import CNNAutoEncoder
 from models.cnn_rnn_ae import CNNRNNAutoEncoder
+from models.cnn_rnn_attention_ae import CNNRNNAttentionAutoEncoder
 
 def reconstruct_from_windows_np(windows, window, stride):
     if windows.ndim == 2:
@@ -108,8 +109,10 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
     T, C = test_arr.shape[1], test_arr.shape[2]
     if cfg['model']['type'] == 'cnn':
         model = CNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
-    else:
+    elif cfg['model']['type'] == 'cnnrnn':
         model = CNNRNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
+    elif cfg['model']['type'] == 'cnnrnn_attention':
+        model = CNNRNNAttentionAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
     # model = CNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
     model.load_state_dict(ckpt['model'])
     model.eval()

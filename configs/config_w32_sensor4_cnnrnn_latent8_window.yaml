@@ -1,7 +1,7 @@
 data:
-  train_np: data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_train.npy 
-  val_np: data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_val.npy   
-  test_np: data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_test.npy  
+  train_np: data/prepared/FD001_w32_s16_sensor4_norm/cmapss_w32_s16_norm_train.npy 
+  val_np: data/prepared/FD001_w32_s16_sensor4_norm/cmapss_w32_s16_norm_val.npy   
+  test_np: data/prepared/FD001_w32_s16_sensor4_norm/cmapss_w32_s16_norm_test.npy  
   T: 32
   C: 1
   stride: 16 # <--- **新增：必须与您preprocess时使用的stride一致**
@@ -18,4 +18,4 @@ train:
   alpha_stft: 0.1 # <--- 将alpha重命名为alpha_stft
   lambda_consistency: 10.0 # <--- **新增：一致性损失的权重**
   lambda_latent_consistency: 0.05 # <--- **新增：潜在空间一致性损失的权重**
-  ckpt: ckpt/best_cnnrnn_attention_chongdie_consistency0.05.pth # 建议保存为新文件
+  ckpt: ckpt/best_cnnrnn_attention_sensor4_consistency0.05.pth # 建议保存为新文件

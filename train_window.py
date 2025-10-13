@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from data.loader_window import get_dataloaders
 from models.cnn_ae import CNNAutoEncoder
 from models.cnn_rnn_ae import CNNRNNAutoEncoder
+from models.cnn_rnn_attention_ae import CNNRNNAttentionAutoEncoder
 from models.controller import ComplexityEstimator
 from utils import weighted_mse, extract_shallow_features
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -34,8 +35,10 @@ def main(cfg):
 
     if cfg['model']['type'] == 'cnn':
         model = CNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
-    else:
+    elif cfg['model']['type'] == 'cnnrnn':
         model = CNNRNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
+    elif cfg['model']['type'] == 'cnnrnn_attention':
+        model = CNNRNNAttentionAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
 
     controller = ComplexityEstimator(in_dim=5, hidden=64, out_scale=1.0).to(device)
     params_to_optimize = list(model.parameters()) + list(controller.parameters())
@@ -142,15 +145,22 @@ def main(cfg):
             ratio = controller(feats)
             latent_penalty = avg_z_abs_mean * ratio.mean()
 
-            # --- 3. 计算新的潜在空间预测损失 ---
-            z2_predicted = model.latent_predictor(z1)
-            # 目标是让 z1 预测出的 z2' 逼近真实的 z2
-            # 使用 .detach() 是一个好的实践，它确保这个损失只更新 predictor 和 encoder，
-            # 而不会让 z2 的梯度“回头”影响 encoder 两次。
-            latent_consistency_loss = F.mse_loss(z2_predicted, z2.detach())
+            # # --- 3. 计算新的潜在空间预测损失 ---
+            # z2_predicted = model.latent_predictor(z1)
+            # # 目标是让 z1 预测出的 z2' 逼近真实的 z2
+            # # 使用 .detach() 是一个好的实践，它确保这个损失只更新 predictor 和 encoder，
+            # # 而不会让 z2 的梯度“回头”影响 encoder 两次。
+            # latent_consistency_loss = F.mse_loss(z2_predicted, z2.detach())
+
+            # --- 3. 计算重叠区域一致性损失 (Overlap Consistency Loss) ---
+            # rec1的后半部分重叠区域
+            overlap1 = rec1[:, -overlap_len:, :]
+            # rec2的前半部分重叠区域
+            overlap2 = rec2[:, :overlap_len, :]
+            consistency_loss = F.mse_loss(overlap1, overlap2)
             
             # --- 4. 组合最终的总损失 ---
-            loss = total_recon_loss + lambda_latent * latent_penalty + lambda_latent_consistency * latent_consistency_loss
+            loss = total_recon_loss + lambda_latent * latent_penalty + lambda_latent_consistency * consistency_loss
             
             opt.zero_grad(); loss.backward(); opt.step()
             total_loss += loss.item()
