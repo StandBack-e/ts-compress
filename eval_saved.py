@@ -105,6 +105,7 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
     ds = TimeSeriesDataset(test_arr)
     dl = DataLoader(ds, batch_size=cfg['train']['batch_size'], shuffle=False)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    use_vq = cfg['model'].get('use_vq', False)
 
     T, C = test_arr.shape[1], test_arr.shape[2]
     if cfg['model']['type'] == 'cnn':
@@ -112,7 +113,17 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
     elif cfg['model']['type'] == 'cnnrnn':
         model = CNNRNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
     elif cfg['model']['type'] == 'cnnrnn_attention':
-        model = CNNRNNAttentionAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
+        model = CNNRNNAttentionAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim'],use_vq=use_vq).to(device)
+    elif cfg['model']['type'] == 'patchtst_ae':
+        from models.patchtst_ae import PatchTSTAutoEncoder # 导入新模型
+        model = PatchTSTAutoEncoder(
+            T=T, C=C,
+            latent_dim=cfg['model']['latent_dim'],
+            patch_len=cfg['model']['patch_len'],
+            patch_stride=cfg['model']['patch_stride'],
+            d_model=cfg['model']['d_model'],
+            nhead=cfg['model']['nhead']
+        ).to(device)
     # model = CNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
     model.load_state_dict(ckpt['model'])
     model.eval()
@@ -125,7 +136,7 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
     with torch.no_grad():
         for xb in dl:
             xb = xb.to(device).float()
-            z = model(xb)
+            z = model.encode(xb)
             rec = model.decode(z)
             # rec, z = model(xb)
             b_mse = ((xb - rec)**2).mean(dim=(1,2)).cpu().numpy()  # (B,)
@@ -229,9 +240,32 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
             break
     full_raw_bytes = safe_filesize(full_raw_path) if full_raw_path is not None else None
 
+    # --- 5. 精确计算压缩率 (核心修正部分) ---
+    print("\n--- 压缩率报告 (基于测试集精确计算) ---")
+
+    # 5.1 计算与测试集(test.npy)对应的真实原始数据大小 (in bits)
+    # 我们不再使用 full_raw.npy，因为我们只在 test.npy 上进行了评估
+    stride = cfg.get('data', {}).get('stride', 16) # 从配置获取 stride
+    num_windows_in_test = len(test_arr) # test_arr 就是 test.npy
+    T = test_arr.shape[1] # 窗口大小
+    C = test_arr.shape[2] # 通道数
+
+    # 精确计算 test.npy 所代表的去重叠后的序列长度
+    if num_windows_in_test > 0:
+        num_points_in_test_sequence = (num_windows_in_test - 1) * stride + T
+    else:
+        num_points_in_test_sequence = 0
+
+    # 计算原始大小 (bits)，假设原始数据为 float32
+    original_size_bits = num_points_in_test_sequence * C * 32
+    print(f"测试集窗口数: {num_windows_in_test}")
+    print(f"计算出的测试集对应原始序列长度: {num_points_in_test_sequence}")
+    print(f"对应的原始数据大小: {original_size_bits / 8 / 1024:.2f} KB")
+
+
     # compute compression ratios (raw npy vs latent npy and vs latent npz)
-    cr_raw_vs_latent, saving_raw_vs_latent = compute_cr(full_raw_bytes, latent_bytes) if full_raw_bytes else (None, None)
-    cr_raw_vs_npz, saving_raw_vs_npz = compute_cr(full_raw_bytes, latent_npz_bytes) if full_raw_bytes else (None, None)
+    cr_raw_vs_latent, saving_raw_vs_latent = compute_cr(original_size_bits / 8, latent_bytes) if full_raw_bytes else (None, None)
+    cr_raw_vs_npz, saving_raw_vs_npz = compute_cr(original_size_bits / 8, latent_npz_bytes) if full_raw_bytes else (None, None)
 
     # save summary (add latent sizes and CR)
     summary = {
@@ -246,7 +280,7 @@ def evaluate_and_save(cfg, n_save=8, out_dir="results"):
         "latent_bytes": latent_bytes,
         "latent_compressed_bytes": latent_npz_bytes,
         "full_raw_path": full_raw_path,
-        "full_raw_bytes": full_raw_bytes,
+        "full_raw_bytes": original_size_bits / 8,
         "compression_ratio_raw_vs_latent_npy": cr_raw_vs_latent,
         "compression_saving_raw_vs_latent_npy": saving_raw_vs_latent,
         "compression_ratio_raw_vs_latent_npz": cr_raw_vs_npz,

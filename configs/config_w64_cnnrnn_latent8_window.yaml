@@ -1,0 +1,25 @@
+data:
+  train_np: data/prepared/FD001_w64_s40_sensor2_norm/cmapss_w64_s40_norm_train.npy 
+  val_np: data/prepared/FD001_w64_s40_sensor2_norm/cmapss_w64_s40_norm_val.npy   
+  test_np: data/prepared/FD001_w64_s40_sensor2_norm/cmapss_w64_s40_norm_test.npy  
+  T: 64
+  C: 1
+  stride: 40 # <--- **新增：必须与您preprocess时使用的stride一致**
+
+model:
+  type: cnnrnn_attention # 或 cnn 或 cnnrnn_attention
+  latent_dim: 8
+  use_vq: True # <--- **新增：是否启用VQ**
+  num_quantizers: 4 # 默认4
+  codebook_size: 256 # 默认256
+
+train:
+  batch_size: 32
+  lr: 0.001
+  epochs: 100
+  lambda_latent: 1e-4
+  alpha_stft: 0.1 # <--- 将alpha重命名为alpha_stft
+  lambda_consistency: 0.0 # <--- **新增：一致性损失的权重**
+  lambda_latent_consistency: 0.25 # <--- **新增：潜在空间一致性损失的权重**
+  beta_vq: 0.25 # <--- **新增：VQ损失的权重**
+  ckpt: ckpt/best_cnnrnn_attention_w64_s63_latent8_codebook256_quantizers4_chongdie_stft0.1_consistency0.25_vq0.25.pth # 建议保存为新文件

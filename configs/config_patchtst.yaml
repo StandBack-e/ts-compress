@@ -1,0 +1,27 @@
+# configs/config_patchtst.yaml
+data:
+  # --- 与您的主配置文件保持完全一致 ---
+  train_np: ./data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_train.npy
+  val_np: ./data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_val.npy
+  test_np: ./data/prepared/FD001_w32_s16_sensor2_norm/cmapss_w32_s16_norm_test.npy
+  stride: 16 # 滑动步长
+
+model:
+  type: patchtst_ae # 模型类型
+  latent_dim: 8     # 潜向量维度，与您的模型保持一致
+  # --- PatchTST 特定参数 ---
+  patch_len: 8      # 每个Patch的长度
+  patch_stride: 4   # Patch的滑动步长
+  d_model: 64       # Transformer的内部维度
+  nhead: 4          # Transformer的多头注意力头数
+
+train:
+  # --- 与您的主配置文件保持完全一致 ---
+  lr: 0.001
+  batch_size: 128
+  epochs: 50
+  # --- 损失权重也保持一致，确保公平 ---
+  lambda_overlap_consistency: 0.05 
+  alpha_stft: 0.1
+  # --- 为PatchTST模型指定一个独立的权重保存路径 ---
+  ckpt: ckpt/patchtst_ae_s2.pt

@@ -9,13 +9,17 @@ data:
 model:
   type: cnnrnn_attention # 或 cnn 或 cnnrnn_attention
   latent_dim: 8
+  use_vq: True # <--- **新增：是否启用VQ**
+  num_quantizers: 4
+  codebook_size: 256
 
 train:
-  batch_size: 128
+  batch_size: 64
   lr: 0.001
   epochs: 150
   lambda_latent: 1e-4
   alpha_stft: 0.1 # <--- 将alpha重命名为alpha_stft
-  lambda_consistency: 10.0 # <--- **新增：一致性损失的权重**
-  lambda_latent_consistency: 0.05 # <--- **新增：潜在空间一致性损失的权重**
-  ckpt: ckpt/best_cnnrnn_attention_chongdie_consistency0.05.pth # 建议保存为新文件
+  lambda_consistency: 0.0 # <--- **新增：一致性损失的权重**
+  lambda_latent_consistency: 0.25 # <--- **新增：潜在空间一致性损失的权重**
+  beta_vq: 0.25 # <--- **新增：VQ损失的权重**
+  ckpt: ckpt/best_cnnrnn_attention_w32_s16_latent8_codebook256_quantizers4_chongdie_stft0.1_consistency0.25_vq0.25.pth # 建议保存为新文件

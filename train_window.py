@@ -33,12 +33,17 @@ def main(cfg):
 
     train_loader, val_loader = get_dataloaders(train_arr, val_arr, batch_size=cfg['train']['batch_size'])
 
+    # 检查是否启用VQ
+    use_vq = cfg['model'].get('use_vq', False)
+    num_quantizers = cfg['model'].get('num_quantizers', 4)
+    codebook_size = cfg['model'].get('codebook_size', 256)
+
     if cfg['model']['type'] == 'cnn':
         model = CNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
     elif cfg['model']['type'] == 'cnnrnn':
         model = CNNRNNAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
     elif cfg['model']['type'] == 'cnnrnn_attention':
-        model = CNNRNNAttentionAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim']).to(device)
+        model = CNNRNNAttentionAutoEncoder(T=T, C=C, latent_dim=cfg['model']['latent_dim'],use_vq=use_vq,num_quantizers=num_quantizers,codebook_size=codebook_size).to(device)
 
     controller = ComplexityEstimator(in_dim=5, hidden=64, out_scale=1.0).to(device)
     params_to_optimize = list(model.parameters()) + list(controller.parameters())
@@ -53,6 +58,9 @@ def main(cfg):
     # 新的潜在空间一致性损失权重
     lambda_latent_consistency = float(cfg['train']['lambda_latent_consistency'])
     alpha_stft = float(cfg['train']['alpha_stft'])
+    beta_vq = float(cfg['train'].get('beta_vq', 0.25)) # VQ损失的权重
+
+    
 
     for epoch in range(cfg['train']['epochs']):
         model.train(); controller.train()
@@ -63,57 +71,15 @@ def main(cfg):
             xb1 = xb1.to(device)
             xb2 = xb2.to(device)
 
-            # # 分别对两个窗口进行重构
-            # rec1, z1 = model(xb1)
-            # rec2, z2 = model(xb2)
-
-            # # --- 1. 计算平均重构损失 (MSE + STFT) ---
-            # # MSE
-            # recon_loss_mse1 = weighted_mse(xb1, rec1)
-            # recon_loss_mse2 = weighted_mse(xb2, rec2)
-            # avg_recon_loss_mse = (recon_loss_mse1 + recon_loss_mse2) / 2.0
-            
-            # # STFT
-            # xb1_s = xb1.squeeze(-1); rec1_s = rec1.squeeze(-1)
-            # xb2_s = xb2.squeeze(-1); rec2_s = rec2.squeeze(-1)
-            # stft_orig1 = torch.stft(xb1_s, n_fft=32, hop_length=8, win_length=32, return_complex=True)
-            # stft_rec1 = torch.stft(rec1_s, n_fft=32, hop_length=8, win_length=32, return_complex=True)
-            # stft_orig2 = torch.stft(xb2_s, n_fft=32, hop_length=8, win_length=32, return_complex=True)
-            # stft_rec2 = torch.stft(rec2_s, n_fft=32, hop_length=8, win_length=32, return_complex=True)
-            
-            # stft_loss1 = F.l1_loss(torch.abs(stft_rec1), torch.abs(stft_orig1))
-            # stft_loss2 = F.l1_loss(torch.abs(stft_rec2), torch.abs(stft_orig2))
-            # avg_stft_loss = (stft_loss1 + stft_loss2) / 2.0
-
-            # # 组合重构损失
-            # total_recon_loss = avg_recon_loss_mse + alpha_stft * avg_stft_loss
-
-            # # --- 2. 计算潜在空间惩罚 ---
-            # # 这里可以取平均，或者合并处理，取平均更简单
-            # avg_z_abs_mean = (z1.abs().mean() + z2.abs().mean()) / 2.0
-            # # controller features (只用第一个窗口的特征作为示例)
-            # feats = extract_shallow_features(xb1)
-            # feats = torch.from_numpy(feats).to(device)
-            # ratio = controller(feats)
-            # latent_penalty = avg_z_abs_mean * ratio.mean()
-
-            # # --- 3. 计算重叠区域一致性损失 (Overlap Consistency Loss) ---
-            # # rec1的后半部分重叠区域
-            # overlap1 = rec1[:, -overlap_len:, :]
-            # # rec2的前半部分重叠区域
-            # overlap2 = rec2[:, :overlap_len, :]
-            # consistency_loss = F.mse_loss(overlap1, overlap2)
-            
-            # # --- 4. 组合最终的总损失 ---
-            # # print(f"consistency_loss={consistency_loss.item():.6f}")
-            # loss = total_recon_loss + lambda_latent * latent_penalty + lambda_consistency * consistency_loss
             # 1. 编码得到潜在向量
-            z1 = model(xb1)
-            z2 = model(xb2)
+            z1 = model.encode(xb1)
+            z2 = model.encode(xb2)
 
             # 2. 解码得到重构结果
-            rec1 = model.decode(z1)
-            rec2 = model.decode(z2)
+            rec1, _, _, _, vq_loss1 = model(xb1)
+            rec2, _, _, _, vq_loss2 = model(xb2)
+            # rec1 = model.decode(z1)
+            # rec2 = model.decode(z2)
 
             # --- 计算重构损失 (与之前类似，取平均) ---
             recon_loss_mse1 = weighted_mse(xb1, rec1)
@@ -138,6 +104,13 @@ def main(cfg):
             avg_stft_loss = (stft_loss1 + stft_loss2) / 2.0
             total_recon_loss = avg_recon_loss_mse + alpha_stft * avg_stft_loss
 
+            # --- 2. 加上VQ的损失 ---
+            # 如果启用VQ，则加上vq_loss
+            if use_vq:
+                avg_vq_loss = (vq_loss1 + vq_loss2) / 2.0
+                beta_vq = 0.25 # VQ损失的权重，可以作为超参调整
+                total_recon_loss = total_recon_loss + beta_vq * avg_vq_loss
+
             # --- 计算潜在空间惩罚 ---
             avg_z_abs_mean = (z1.abs().mean() + z2.abs().mean()) / 2.0
             feats = extract_shallow_features(xb1)
@@ -160,6 +133,7 @@ def main(cfg):
             consistency_loss = F.mse_loss(overlap1, overlap2)
             
             # --- 4. 组合最终的总损失 ---
+            
             loss = total_recon_loss + lambda_latent * latent_penalty + lambda_latent_consistency * consistency_loss
             
             opt.zero_grad(); loss.backward(); opt.step()
@@ -171,11 +145,12 @@ def main(cfg):
         with torch.no_grad():
             for xb1, xb2 in val_loader:
                 xb1, xb2 = xb1.to(device), xb2.to(device)
-                rec1 = model.decode(model(xb1))
-                rec2 = model.decode(model(xb2))
+                rec1 = model.decode(model.encode(xb1))
+                rec2 = model.decode(model.encode(xb2))
                 # 评估两个窗口的平均MSE
                 val_loss += ((weighted_mse(xb1, rec1) + weighted_mse(xb2, rec2)) / 2.0).item()
         
+        print(f"len(val_loader)={len(val_loader)}")
         val_loss /= len(val_loader)
         scheduler.step(val_loss)
         print(f"Epoch {epoch} train_loss {total_loss/len(train_loader):.6f} val_loss {val_loss:.6f}")
